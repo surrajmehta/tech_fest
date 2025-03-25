@@ -1,9 +1,10 @@
-from flask import Flask, request, jsonify, render_template
+import os
 import cv2
 import numpy as np
 import pickle
 import mysql.connector
 import datetime
+from flask import Flask, request, jsonify
 from deepface import DeepFace
 
 app = Flask(__name__)
@@ -15,21 +16,22 @@ with open("svm_classifier.pkl", "rb") as f:
 with open("label_encoder.pkl", "rb") as f:
     label_encoder = pickle.load(f)
 
-# ✅ Connect to MySQL Database
+# ✅ Connect to MySQL Database on Railway
 def connect_db():
     try:
+        db_url = os.getenv("MYSQL_URL")  # Fetch Railway's MySQL URL from environment variables
+        if not db_url:
+            raise ValueError("Database URL not found. Make sure the Railway environment variable is set.")
+        
         conn = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="",
-            database="attendance_system"
+            option_files=db_url  # Use Railway's MySQL URL directly
         )
         return conn
     except mysql.connector.Error as e:
         print(f"Error connecting to MySQL: {e}")
         return None
 
-# ✅ Function to mark attendance
+# ✅ Function to mark attendance in MySQL
 def mark_attendance(name):
     conn = connect_db()
     if conn is None:
@@ -44,16 +46,11 @@ def mark_attendance(name):
     
     print(f"✅ Attendance marked for {name} at {now}")
 
-# ✅ Route to serve the HTML page
-@app.route("/")
-def home():
-    return render_template("index.html")
-
 # ✅ API Endpoint for Face Recognition
 @app.route("/recognize", methods=["POST"])
 def recognize_face():
     try:
-        file = request.files["image"]
+        file = request.files["image"]  # Get the uploaded image
         np_img = np.frombuffer(file.read(), np.uint8)
         frame = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
 
@@ -76,4 +73,3 @@ def recognize_face():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
